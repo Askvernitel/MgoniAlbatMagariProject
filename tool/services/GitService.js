@@ -776,62 +776,77 @@ class GitService {
       throw new Error(`Failed to analyze commits: ${err.message}`);
     }
   }
+async getCommitTree(maxCommits = 50) {
+  
+  try {
+    // Get commit log with parent information and refs using raw format
+    const logOutput = await this.git.raw([
+      'log',
+      '--all',
+      `--max-count=${maxCommits}`,
+      '--pretty=format:%H|%P|%s|%an|%ar|%ad|%D',
+      '--date=iso'
+    ]);
+    
+    const lines = logOutput.trim().split('\n');
+    const commits = [];
+    
+    // Parse and create commit objects
+    lines.forEach(line => {
+      if (!line) return;
+      
+      const [hash, parents, message, author, relativeDate, date, refs] = line.split('|');
+      const parentList = (parents && parents.trim()) ? parents.split(' ').filter(p => p) : [];
+      
+      // Parse refs (branches, tags, HEAD)
+      let branch = '';
+      if (refs) {
+        const refParts = refs.split(',').map(r => r.trim());
+        // Prioritize: HEAD -> local branch > remote branch > tag
+        for (const ref of refParts) {
+          if (ref.startsWith('HEAD -> ')) {
+            branch = ref.replace('HEAD -> ', '') + ' (HEAD)';
+            break;
+          }
+        }
+        // If no HEAD, take first branch
+        if (!branch) {
+          for (const ref of refParts) {
+            if (!ref.startsWith('tag:') && ref !== 'HEAD') {
+              branch = ref;
+              break;
+            }
+          }
+        }
+      }
+      
+      commits.push({
+        id: hash,
+        parents: parentList,
+        message: message,
+        author: author,
+        date: date,
+        relativeDate: relativeDate,
+        branch: branch
+      });
+    });
+    
+    return commits;
+    
+  } catch (error) {
+    console.error('Error fetching git history:', error);
+    throw error;
+  }
 }
 
+}
 // Usage example
 async function example() {
   let repo = '/home/danieludzlieresi/Desktop/badgit';
   const gitService = new GitService(repo);
-  
+  console.log(await gitService.getCommitTree());
+  /*
   try {
-   /* 
-    // Get repository metadata
-    console.log('=== Repository Metadata ===');
-    const metadata = await gitService.getMetadata();
-    console.log(JSON.stringify(metadata, null, 2));
-
-    // Get file hierarchy
-    console.log('\n=== File Hierarchy ===');
-    const hierarchy = await gitService.getFileHierarchy('.', true);
-    console.log(JSON.stringify(hierarchy, null, 2));
-
-    // Get directory summary
-    console.log('\n=== Directory Summary ===');
-    const summary = await gitService.getDirectorySummary('.');
-    console.log(`Total files: ${summary.totalFiles}`);
-    console.log(`Total directories: ${summary.totalDirs}`);
-
-    // Get tracked files
-    console.log('\n=== Tracked Files ===');
-    const tracked = await gitService.getTrackedFiles();
-    console.log(tracked);
-
-    // Search files
-    console.log('\n=== Search Results (*.js) ===');
-    const jsFiles = await gitService.searchFiles('\\.js$');
-    console.log(jsFiles.map(f => f.path));
-    */
-   /*
-    // Compare two branches - THIS IS THE KEY FUNCTION
-    console.log('\n=== Branch Comparison: main vs develop ===');
-    const analysis = await gitService.analyzeBranches('main', 'develop');
-    console.log('Branch 1 Files:', analysis.branch1.fileCount);
-    console.log('Branch 2 Files:', analysis.branch2.fileCount);
-    console.log('Summary:', JSON.stringify(analysis.comparison.summary, null, 2));
-    console.log('Modified Files:', analysis.comparison.modifiedFiles.length);
-    
-    // You can access full file contents:
-    console.log('\n=== Files in Branch 1 ===');
-    analysis.branch1.files.forEach(file => {
-      console.log(`\nFile: ${file.path}`);
-      console.log(`Content:\n${file.content}`);
-    });
-
-    console.log('\n=== Files in Branch 2 ===');
-    analysis.branch2.files.forEach(file => {
-      console.log(`\nFile: ${file.path}`);
-      console.log(`Content:\n${file.content}`);
-    });*/
 
     // Compare specific file
     console.log('\n=== File Comparison ===');
@@ -870,7 +885,7 @@ async function example() {
     
   } catch (err) {
     console.error('Error:', err.message);
-  }
+  }*/
 }
 
 // Uncomment to run example
