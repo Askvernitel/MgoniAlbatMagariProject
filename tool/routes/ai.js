@@ -1,8 +1,11 @@
 import express from "express";
 
 const aiRouter = express.Router();
-
+const gitService= new GitService();
 aiRouter.post("/ai/commit", (req, res, next) => {
+
+
+
   res.json({ message: "not implemented" });
 });
 
