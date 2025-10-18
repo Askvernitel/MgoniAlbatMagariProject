@@ -453,38 +453,58 @@ class GitService {
    */
   async compareFile(filePath, branch1, branch2) {
     try {
+      
       let content1 = null;
       let content2 = null;
-      
-      // Try to get content from branch1
+      console.log("GOT HERE");
+      console.log(await this.git.show("main:tool/services/GitService.js"));
       try {
         content1 = await this.git.show([`${branch1}:${filePath}`]);
+        console.log(`✓ Found ${filePath} Content ${content1}`);
       } catch (err) {
-        console.log(`File ${filePath} not found in ${branch1}`);
+        console.log(`✗ File ${filePath} not found in ${branch1}:`, err.message);
+        
+        try {
+          const files = await this.git.raw(['ls-tree', '-r', '--name-only', branch1]);
+          const fileList = files.trim().split('\n');
+          const matching = fileList.filter(f => f.includes('GitService'));
+          console.log(`Files containing "GitService" in ${branch1}:`, matching);
+        } catch (listErr) {
+          console.log('Could not list files:', listErr.message);
+        }
       }
       
-      // Try to get content from branch2
       try {
         content2 = await this.git.show([`${branch2}:${filePath}`]);
       } catch (err) {
-        console.log(`File ${filePath} not found in ${branch2}`);
+        try {
+          const files = await this.git.raw(['ls-tree', '-r', '--name-only', branch2]);
+          const fileList = files.trim().split('\n');
+          console.log(`Files containing "GitService" in ${branch2}:`, matching);
+        } catch (listErr) {
+          console.log('Could not list files:', listErr.message);
+        }
       }
 
       let diff = null;
       if (content1 && content2) {
         try {
-          diff = await this.git.diff([`${branch1}..${branch2}`, '--', filePath]);
+          diff = await this.git.diff([`${branch1}`, `${branch2}`, '--', filePath]);
+          console.log(`✓ Generated diff for ${filePath}`);
         } catch (err) {
-          console.log(`Could not generate diff for ${filePath}:`, err.message);
+          console.log(`✗ Could not generate diff for ${filePath}:`, err.message);
         }
       }
 
-      console.log('Diff:', diff);
-      console.log('CONTENT 1:\n', content1 ? content1.substring(0, 200) : 'NULL');
-      console.log('CONTENT 2:\n', content2 ? content2.substring(0, 200) : 'NULL');
+      console.log('\n=== Comparison Results ===');
+      console.log('File path:', filePath);
+      console.log('Diff length:', diff ? diff.length : 0);
+      console.log('CONTENT 1 length:', content1 ? content1.length : 0);
+      console.log('CONTENT 2 length:', content2 ? content2.length : 0);
+      console.log('Files identical:', content1 === content2);
 
       return {
-        filePath,
+        filePath: filePath,
         existsIn: {
           [branch1]: content1 !== null,
           [branch2]: content2 !== null
@@ -497,45 +517,23 @@ class GitService {
         identical: content1 === content2
       };
     } catch (err) {
+      console.log(err);
       throw new Error(`Failed to compare file: ${err.message}`);
     }
   }
 
   /**
-   * Get detailed file comparison between branches
+   * Helper: List all files in a branch
    */
-  async compareFile(filePath, branch1, branch2) {
+  async listBranchFiles(branchName) {
     try {
-      const [content1, content2] = await Promise.all([
-        this.git.show([`${branch1}:${filePath}`]).catch(() => null),
-        this.git.show([`${branch2}:${filePath}`]).catch(() => null)
-      ]);
-
-      const diff = content1 && content2 
-        ? await this.git.diff([`${branch1}..${branch2}`, '--', filePath])
-        : null;
-
-      return {
-        filePath,
-        existsIn: {
-          [branch1]: content1 !== null,
-          [branch2]: content2 !== null
-        },
-        content: {
-          [branch1]: content1,
-          [branch2]: content2
-        },
-        diff,
-        identical: content1 === content2
-      };
+      const files = await this.git.raw(['ls-tree', '-r', '--name-only', branchName]);
+      return files.trim().split('\n').filter(f => f);
     } catch (err) {
-      throw new Error(`Failed to compare file: ${err.message}`);
+      throw new Error(`Failed to list files in ${branchName}: ${err.message}`);
     }
   }
 
-  /**
-   * Get commit details by hash
-   */
   async getCommitByHash(commitHash) {
     try {
       const log = await this.git.log([commitHash, '-1']);
@@ -579,6 +577,14 @@ class GitService {
       };
     } catch (err) {
       throw new Error(`Failed to get commit: ${err.message}`);
+    }
+  }
+  async getDiffBetweenCommits(hash1, hash2) {
+    try {
+      const diff = await this.git.diff([`${hash1}..${hash2}`]);
+      return diff;
+    } catch (err) {
+      console.error('Error getting diff:', err.message);
     }
   }
 
@@ -745,7 +751,8 @@ class GitService {
           date: comparison.commit1.date,
           message: comparison.commit1.message,
           fileCount: content1.fileCount,
-          files: content1.files
+          files: content1.files,
+          content: content1,
         },
         commit2: {
           hash: comparison.commit2.hash,
@@ -754,7 +761,8 @@ class GitService {
           date: comparison.commit2.date,
           message: comparison.commit2.message,
           fileCount: content2.fileCount,
-          files: content2.files
+          files: content2.files,
+          content2: content2,
         },
         comparison: {
           commitsBetween: comparison.comparison.commitsBetween,
@@ -772,9 +780,11 @@ class GitService {
 
 // Usage example
 async function example() {
-  const gitService = new GitService('.');
+  let repo = '/home/danieludzlieresi/Desktop/badgit';
+  const gitService = new GitService(repo);
   
   try {
+   /* 
     // Get repository metadata
     console.log('=== Repository Metadata ===');
     const metadata = await gitService.getMetadata();
@@ -800,10 +810,11 @@ async function example() {
     console.log('\n=== Search Results (*.js) ===');
     const jsFiles = await gitService.searchFiles('\\.js$');
     console.log(jsFiles.map(f => f.path));
-
+    */
+   /*
     // Compare two branches - THIS IS THE KEY FUNCTION
     console.log('\n=== Branch Comparison: main vs develop ===');
-    const analysis = await gitService.analyzeBranches('main', 'daniel');
+    const analysis = await gitService.analyzeBranches('main', 'develop');
     console.log('Branch 1 Files:', analysis.branch1.fileCount);
     console.log('Branch 2 Files:', analysis.branch2.fileCount);
     console.log('Summary:', JSON.stringify(analysis.comparison.summary, null, 2));
@@ -820,21 +831,22 @@ async function example() {
     analysis.branch2.files.forEach(file => {
       console.log(`\nFile: ${file.path}`);
       console.log(`Content:\n${file.content}`);
-    });
+    });*/
 
     // Compare specific file
     console.log('\n=== File Comparison ===');
-    const fileComparison = await gitService.compareFile('README.md', 'main', 'daniel');
+    const fileComparison = await gitService.compareFile('tool/services/GitService.js', 'main', 'daniel');
     console.log('File exists in main:', fileComparison.existsIn.main);
-    console.log('File exists in develop:', fileComparison.existsIn.develop);
+    console.log('File exists in develop:', fileComparison.existsIn.daniel);
     console.log('Files identical:', fileComparison.identical);
     if (fileComparison.diff) {
       console.log('Diff:', fileComparison.diff);
     }
+    
 
     // Compare commits by hash
     console.log('\n=== Commit Comparison ===');
-    const commitAnalysis = await gitService.analyzeCommits('abc1234', 'def5678');
+    const commitAnalysis = await gitService.analyzeCommits('eb4ea610e92d433119b8ad17061ce380cc14fcbc', 'd5f31b3fa1e4fdeb9550783cb8a22321986c1630');
     console.log('Commit 1:', commitAnalysis.commit1.message);
     console.log('Commit 2:', commitAnalysis.commit2.message);
     console.log('Files in Commit 1:', commitAnalysis.commit1.fileCount);
@@ -844,7 +856,11 @@ async function example() {
     
     // Get single commit details
     console.log('\n=== Single Commit Details ===');
-    const commit = await gitService.getCommitByHash('abc1234');
+    const commit = await gitService.getCommitByHash('eb4ea610e92d433119b8ad17061ce380cc14fcbc');
+
+    const diff = await gitService.getDiffBetweenCommits('eb4ea610e92d433119b8ad17061ce380cc14fcbc', 'd5f31b3fa1e4fdeb9550783cb8a22321986c1630');
+
+    console.log("Diff", diff);
     console.log('Commit:', commit.shortHash);
     console.log('Author:', commit.author.name);
     console.log('Message:', commit.message);
@@ -858,6 +874,6 @@ async function example() {
 }
 
 // Uncomment to run example
-example();
+ example();
 
 export default GitService;
