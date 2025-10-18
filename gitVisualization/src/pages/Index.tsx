@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CommitTree } from "@/components/CommitTree";
 import { CommitInput } from "@/components/CommitInput";
 import { CommitComparison } from "@/components/CommitComparison";
@@ -8,6 +8,11 @@ import { GitCompare, Plus, BarChart3, Brain, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
+interface CommitTreeResponse {
+  roots: Commit[];
+  all: Commit[];
+  tips: Commit[];
+}
 const Index = () => {
   const [commits, setCommits] = useState<Commit[]>([
     {
@@ -96,10 +101,20 @@ const Index = () => {
       branch: "main",
     },
   ]);
-
+  useEffect(() => {
+    const fetchTree = async () => {
+      const response = await fetch("http://localhost:3000/commit/tree");
+      const tree = (await response.json()) as Commit[];
+      tree.forEach(commit => {
+        console.log(commit);
+      });
+      setCommits(tree);
+    };
+    fetchTree();
+  }, [])
   const [firstSelected, setFirstSelected] = useState<Commit | null>(null);
   const [secondSelected, setSecondSelected] = useState<Commit | null>(null);
-  
+
   const [showComparison, setShowComparison] = useState(false);
   const [showInput, setShowInput] = useState(false);
   const [showStats, setShowStats] = useState(false);

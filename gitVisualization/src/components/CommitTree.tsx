@@ -164,7 +164,7 @@ export const CommitTree = ({ commits, firstSelected, secondSelected, onSelectCom
   };
 
   return (
-    <div 
+    <div
       className="relative w-full h-full min-h-[600px] overflow-hidden bg-blue-500 rounded-lg cursor-grab active:cursor-grabbing"
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
@@ -172,14 +172,14 @@ export const CommitTree = ({ commits, firstSelected, secondSelected, onSelectCom
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      <svg 
+      <svg
         ref={svgRef}
-        className="w-full h-full min-h-[600px]" 
+        className="w-full h-full min-h-[600px]"
         viewBox={`0 0 ${maxX} ${maxY}`}
       >
         <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
-        {/* Connection lines */}
-        {renderConnections()}
+          {/* Connection lines */}
+          {renderConnections()}
 
           {/* Commit nodes */}
           {commits.map((commit) => {
