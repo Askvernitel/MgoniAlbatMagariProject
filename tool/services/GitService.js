@@ -276,10 +276,13 @@ class GitService {
       const files = await this.git.raw(['ls-tree', '-r', '--name-only', branchName]);
       const fileList = files.trim().split('\n').filter(f => f);
 
+      console.log(`Found ${fileList.length} files in branch ${branchName}`);
+
       // Get file contents and metadata
       const fileContents = await Promise.all(
         fileList.map(async (filePath) => {
           try {
+            // Use array notation for git.show
             const content = await this.git.show([`${branchName}:${filePath}`]);
             const log = await this.git.log({ 
               file: filePath, 
@@ -299,6 +302,7 @@ class GitService {
               } : null
             };
           } catch (err) {
+            console.error(`Error reading file ${filePath} from ${branchName}:`, err.message);
             return {
               path: filePath,
               error: `Failed to read file: ${err.message}`,
@@ -338,8 +342,6 @@ class GitService {
         this.git.raw(['ls-tree', '-r', '--name-only', branch2])
       ]);
 
-
-      console.log("FILES " , files1);
       const fileList1 = new Set(files1.trim().split('\n').filter(f => f));
       const fileList2 = new Set(files2.trim().split('\n').filter(f => f));
 
@@ -421,7 +423,6 @@ class GitService {
         this.compareBranches(branch1, branch2)
       ]);
 
-      
       return {
         branch1: {
           name: branch1,
@@ -452,14 +453,35 @@ class GitService {
    */
   async compareFile(filePath, branch1, branch2) {
     try {
-      const [content1, content2] = await Promise.all([
-        this.git.show([`${branch1}:${filePath}`]).catch(() => null),
-        this.git.show([`${branch2}:${filePath}`]).catch(() => null)
-      ]);
+      let content1 = null;
+      let content2 = null;
+      
+      // Try to get content from branch1
+      try {
+        content1 = await this.git.show([`${branch1}:${filePath}`]);
+      } catch (err) {
+        console.log(`File ${filePath} not found in ${branch1}`);
+      }
+      
+      // Try to get content from branch2
+      try {
+        content2 = await this.git.show([`${branch2}:${filePath}`]);
+      } catch (err) {
+        console.log(`File ${filePath} not found in ${branch2}`);
+      }
 
-      const diff = content1 && content2 
-        ? await this.git.diff([`${branch1}..${branch2}`, '--', filePath])
-        : null;
+      let diff = null;
+      if (content1 && content2) {
+        try {
+          diff = await this.git.diff([`${branch1}..${branch2}`, '--', filePath]);
+        } catch (err) {
+          console.log(`Could not generate diff for ${filePath}:`, err.message);
+        }
+      }
+
+      console.log('Diff:', diff);
+      console.log('CONTENT 1:\n', content1 ? content1.substring(0, 200) : 'NULL');
+      console.log('CONTENT 2:\n', content2 ? content2.substring(0, 200) : 'NULL');
 
       return {
         filePath,
