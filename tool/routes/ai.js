@@ -7,6 +7,7 @@ aiRouter.post("/ai/commit", (req, res, next) => {
 });
 
 aiRouter.get("/ai/branches", (req, res, next) => {
+  // Return all git branches
   res.json({ message: "not implemented" });
 });
 
