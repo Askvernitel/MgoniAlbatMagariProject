@@ -786,15 +786,179 @@ async getCommitTree(maxCommits = 50) {
     throw error;
   }
 }
+/**
+   * Get detailed file diff between two commits for a specific file
+   */
+  async getFileDiffBetweenCommits(filePath, hash1, hash2) {
+    try {
+      // Get file content from both commits
+      let content1 = null;
+      let content2 = null;
+      
+      try {
+        content1 = await this.git.show([`${hash1}:${filePath}`]);
+      } catch (err) {
+        console.log(`File ${filePath} not found in commit ${hash1}`);
+      }
+      
+      try {
+        content2 = await this.git.show([`${hash2}:${filePath}`]);
+      } catch (err) {
+        console.log(`File ${filePath} not found in commit ${hash2}`);
+      }
+      
+      // Get unified diff
+      let diff = null;
+      if (content1 || content2) {
+        try {
+          diff = await this.git.diff([hash1, hash2, '--', filePath]);
+        } catch (err) {
+          console.log(`Could not generate diff for ${filePath}:`, err.message);
+        }
+      }
+      
+      // Get patch format with stats
+      let patch = null;
+      try {
+        patch = await this.git.show([`${hash2}:${filePath}`, '--stat']);
+      } catch (err) {
+        // Ignore
+      }
+      
+      // Parse diff statistics
+      let stats = {
+        additions: 0,
+        deletions: 0,
+        changes: 0
+      };
+      
+      if (diff) {
+        const addMatch = diff.match(/\n\+[^\+]/g);
+        const delMatch = diff.match(/\n-[^-]/g);
+        stats.additions = addMatch ? addMatch.length : 0;
+        stats.deletions = delMatch ? delMatch.length : 0;
+        stats.changes = stats.additions + stats.deletions;
+      }
+      
+      return {
+        filePath,
+        existsIn: {
+          [hash1]: content1 !== null,
+          [hash2]: content2 !== null
+        },
+        content: {
+          [hash1]: content1,
+          [hash2]: content2
+        },
+        diff,
+        stats,
+        status: !content1 && content2 ? 'added' : 
+                content1 && !content2 ? 'deleted' : 
+                content1 === content2 ? 'unchanged' : 'modified',
+        identical: content1 === content2
+      };
+    } catch (err) {
+      throw new Error(`Failed to get file diff: ${err.message}`);
+    }
+  }
+
+  /**
+   * Get all file diffs between two commits
+   */
+  async getAllFileDiffsBetweenCommits(hash1, hash2) {
+    try {
+      // Get list of all changed files
+      const diffSummary = await this.git.diffSummary([hash1, hash2]);
+      
+      // Get detailed diff for each file
+      const fileDiffs = await Promise.all(
+        diffSummary.files.map(async (file) => {
+          const fileDiff = await this.getFileDiffBetweenCommits(file.file, hash1, hash2);
+          return {
+            ...fileDiff,
+            changeType: file.binary ? 'binary' : fileDiff.status,
+            isBinary: file.binary || false
+          };
+        })
+      );
+      
+      return {
+        commit1: hash1.substring(0, 7),
+        commit2: hash2.substring(0, 7),
+        totalFiles: fileDiffs.length,
+        summary: {
+          added: fileDiffs.filter(f => f.status === 'added').length,
+          deleted: fileDiffs.filter(f => f.status === 'deleted').length,
+          modified: fileDiffs.filter(f => f.status === 'modified').length,
+          unchanged: fileDiffs.filter(f => f.status === 'unchanged').length,
+          binary: fileDiffs.filter(f => f.isBinary).length,
+          totalAdditions: fileDiffs.reduce((sum, f) => sum + f.stats.additions, 0),
+          totalDeletions: fileDiffs.reduce((sum, f) => sum + f.stats.deletions, 0)
+        },
+        files: fileDiffs
+      };
+    } catch (err) {
+      throw new Error(`Failed to get all file diffs: ${err.message}`);
+    }
+  }
+
+  /**
+   * Analyze two commits with full file contents
+   */
+async analyzeCommits(hash1, hash2) {
+  try {
+    console.log(`Analyzing commits: ${hash1} vs ${hash2}...`);
+    // Run all three tasks concurrently
+    const [content1, content2, comparison, fullDiff] = await Promise.all([
+      this.getCommitFiles(hash1),
+      this.getCommitFiles(hash2),
+      this.compareCommits(hash1, hash2),
+      this.getDiffBetweenCommits(hash1, hash2) // full repository diff
+    ]);
+    return {
+      commit1: {
+        hash: comparison.commit1.hash,
+        shortHash: comparison.commit1.shortHash,
+        author: comparison.commit1.author,
+        date: comparison.commit1.date,
+        message: comparison.commit1.message,
+        fileCount: content1.fileCount,
+        files: content1.files
+      },
+      commit2: {
+        hash: comparison.commit2.hash,
+        shortHash: comparison.commit2.shortHash,
+        author: comparison.commit2.author,
+        date: comparison.commit2.date,
+        message: comparison.commit2.message,
+        fileCount: content2.fileCount,
+        files: content2.files
+      },
+      comparison: {
+        commitsBetween: comparison.comparison.commitsBetween,
+        totalCommitsBetween: comparison.comparison.totalCommitsBetween,
+        diffSummary: comparison.comparison.diffSummary,
+        fileComparisons: comparison.comparison.fileComparisons,
+        timeDifference: comparison.timeDifference,
+        // full repo diff text between both commits
+        diff: fullDiff 
+      }
+    };
+  } catch (err) {
+    throw new Error(`Failed to analyze commits: ${err.message}`);
+  }
+}
 
 }
 // Usage example
 async function example() {
   let repo = '/home/danieludzlieresi/Desktop/badgit';
-
   const gitService = new GitService(repo);
 //  console.log(await gitService.getCommitTree());
-  console.log(zlib.gzipSync(JSON.stringify((await gitService.analyzeCommits('eb4ea610e92d433119b8ad17061ce380cc14fcbc', 'd5f31b3fa1e4fdeb9550783cb8a22321986c1630')))));
+  let files = await gitService.getTrackedFiles();
+  files.forEach(async (file,index)=>{ 
+  //console.log(await gitService.getFileDiffBetweenCommits(file, "66d5051ad26db46014bf1cefdf885a05f3efb887", "f9a352eb5ea0d3f88ba7d09a3739d56916e2ae2b"));
+  })
   try {
 /*
     // Compare specific file

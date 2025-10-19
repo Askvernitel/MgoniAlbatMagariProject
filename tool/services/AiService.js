@@ -5,6 +5,7 @@ const GEMINI_API_URL =
   "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent";
 
 class AiService {
+  context;
   constructor(apiKey = GEMINI_API_KEY) {
     if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
     this.apiKey = apiKey;
@@ -35,6 +36,9 @@ class AiService {
 
     return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
   }
+
+
+
 }
 
 export default AiService;
