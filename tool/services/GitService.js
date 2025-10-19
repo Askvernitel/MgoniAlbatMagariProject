@@ -10,6 +10,9 @@ class GitService {
     this.git = simpleGit(repoPath);
   }
 
+  set repo(repo){
+    this.git = simpleGit(repo);
+  }
   /**
    * Get repository metadata
    */
@@ -963,7 +966,7 @@ async function example() {
   files.forEach(async (file)=>{ 
   if(file =="tool/routes/ai.js"){
   console.log("HELLO");
-  console.log(await gitService.getFileDiffBetweenCommits(file, "66d5051ad26db46014bf1cefdf885a05f3efb887", "48f89f98794797519e1fc7794ff4efbcd9019dc4"));
+  console.log(await gitService.getFileDiffBetweenCommits(file, "eb4ea610e92d433119b8ad17061ce380cc14fcbc", "d5f31b3fa1e4fdeb9550783cb8a22321986c1630"));
 
   }
   })

@@ -18,7 +18,10 @@ aiRouter.get("/commit/tree", async (req, res) => {
 
 //we dont care about REST rn
 aiRouter.post("/repo", (req, res) => {
+  console.log("REQ", req.body)
   repo = req.body.repo;
+  console.log("REPO", repo);
+  gitService.repo=repo;
   res.json({ message: "Repository updated" });
 });
 

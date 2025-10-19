@@ -128,11 +128,15 @@ const Index = () => {
   };
 
   const handleCompareWithAI = () => {
-    const fetchTree = async () => {
+    const compare = async () => {
+      console.log("START");
       const response = await fetch(
-        `http://localhost:3000/ai/compare?${firstSelected.id}&${secondSelected.id}`
+        `http://localhost:3000/ai/compare?hash1=${firstSelected.id}&hash2=${secondSelected.id}`
       );
+      let data = await response.json();
+      console.log("JSON RESP:", JSON.stringify(data));
     };
+    compare();
     //let comp = await fetch(`ai/compare?${firstSelected.hash}&${secondSelected.hash}`);
 
     toast.info("AI Comparison", {
@@ -198,10 +202,30 @@ const Index = () => {
     toast.info("Selection cleared");
   };
 
-  const handleDirectoryChange = (directory: string) => {
-    console.log("Directory changed:", directory);
-    // Add your directory loading logic here
+  const handleDirectoryChange = async (directory: string) => {
+    try {
+      const response = await fetch("http://localhost:3000/repo", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          repo: directory,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server responded with ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("Server response:", data);
+    } catch (error) {
+      console.error("Error sending directory:", error);
+    }
   };
+
+  // Add your directory loading logic here
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-background">
