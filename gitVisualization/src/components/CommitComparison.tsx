@@ -2,6 +2,7 @@ import { GitCompare, Calendar, User, Hash, GitBranch, Sparkles } from "lucide-re
 import type { Commit } from "./CommitNode";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Card } from "./ui/card";
 
 interface CommitComparisonProps {
   firstCommit: Commit | null;
@@ -161,8 +162,6 @@ export const CommitComparison = ({ firstCommit, secondCommit, onClear, onCompare
           )}
         </div>
       </div>
-
-      {/* Comparison summary */}
       {firstCommit && secondCommit && (
         <div className="border-t border-border bg-muted/30 px-6 py-4">
           <div className="flex items-center justify-between text-sm mb-4">

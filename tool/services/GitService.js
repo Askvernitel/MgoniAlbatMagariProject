@@ -3,7 +3,7 @@
 import simpleGit from 'simple-git';
 import { promises as fs } from 'fs';
 import path from 'path';
-
+import zlib from "zlib"
 class GitService {
   constructor(repoPath = '.') {
     this.repoPath = repoPath;
@@ -591,102 +591,47 @@ class GitService {
   /**
    * Compare two commits by their hashes
    */
+  
   async compareCommits(hash1, hash2) {
-    try {
-      // Get both commit details
-      const [commit1, commit2] = await Promise.all([
-        this.getCommitByHash(hash1),
-        this.getCommitByHash(hash2)
-      ]);
+    const [log1, log2] = await Promise.all([
+      this.git.show(["--no-patch", "--pretty=format:%H|%h|%an|%ad|%s", hash1]),
+      this.git.show(["--no-patch", "--pretty=format:%H|%h|%an|%ad|%s", hash2]),
+    ]);
 
-      // Get commits between them
-      const commitsBetween = await this.git.log([`${hash1}..${hash2}`]);
-      
-      // Get diff between commits
-      const diff = await this.git.diff([hash1, hash2]);
-      const diffSummary = await this.git.diffSummary([hash1, hash2]);
+    const [h1, short1, author1, date1, msg1] = log1.split("|");
+    const [h2, short2, author2, date2, msg2] = log2.split("|");
 
-      // Find which files exist in each commit
-      const files1 = new Set(commit1.filesChanged.map(f => f.file));
-      const files2 = new Set(commit2.filesChanged.map(f => f.file));
-      
-      const allFiles = new Set([...files1, ...files2]);
-      const fileComparisons = [];
+    // Summary of differences
+    const diffSummary = await this.git.diffSummary([`${hash1}`, `${hash2}`]);
 
-      for (const filePath of allFiles) {
-        try {
-          const [content1, content2] = await Promise.all([
-            this.git.show([`${hash1}:${filePath}`]).catch(() => null),
-            this.git.show([`${hash2}:${filePath}`]).catch(() => null)
-          ]);
+    // Actual line-by-line differences for each changed file
+    const fileComparisons = await Promise.all(
+      diffSummary.files.map(async file => {
+        const diffText = await this.git.diff([`${hash1}`, `${hash2}`, "--", file.file]);
+        return {
+          file: file.file,
+          changeType: file.change, // e.g. "modified"
+          insertions: file.insertions,
+          deletions: file.deletions,
+          diff: diffText,
+        };
+      })
+    );
 
-          fileComparisons.push({
-            path: filePath,
-            existsIn: {
-              [hash1]: content1 !== null,
-              [hash2]: content2 !== null
-            },
-            content: {
-              [hash1]: content1,
-              [hash2]: content2
-            },
-            identical: content1 === content2
-          });
-        } catch (err) {
-          console.error(`Error comparing file ${filePath}:`, err.message);
-        }
-      }
+    // Count commits between
+    const commitsBetween = await this.git.log({ from: hash1, to: hash2 });
 
-      return {
-        commit1: {
-          hash: commit1.hash,
-          shortHash: commit1.shortHash,
-          author: commit1.author,
-          date: commit1.date,
-          message: commit1.message,
-          filesChanged: commit1.filesChanged,
-          stats: commit1.stats
-        },
-        commit2: {
-          hash: commit2.hash,
-          shortHash: commit2.shortHash,
-          author: commit2.author,
-          date: commit2.date,
-          message: commit2.message,
-          filesChanged: commit2.filesChanged,
-          stats: commit2.stats
-        },
-        comparison: {
-          commitsBetween: commitsBetween.all.map(c => ({
-            hash: c.hash.substring(0, 7),
-            author: c.author_name,
-            date: c.date,
-            message: c.message
-          })),
-          totalCommitsBetween: commitsBetween.total,
-          diff,
-          diffSummary: {
-            totalFiles: diffSummary.files.length,
-            totalChanges: diffSummary.changed,
-            totalInsertions: diffSummary.insertions,
-            totalDeletions: diffSummary.deletions,
-            files: diffSummary.files.map(f => ({
-              file: f.file,
-              changes: f.changes,
-              insertions: f.insertions,
-              deletions: f.deletions
-            }))
-          },
-          fileComparisons
-        },
-        timeDifference: {
-          milliseconds: new Date(commit2.date) - new Date(commit1.date),
-          days: Math.floor((new Date(commit2.date) - new Date(commit1.date)) / (1000 * 60 * 60 * 24))
-        }
-      };
-    } catch (err) {
-      throw new Error(`Failed to compare commits: ${err.message}`);
-    }
+    return {
+      commit1: { hash: h1, shortHash: short1, author: author1, date: date1, message: msg1 },
+      commit2: { hash: h2, shortHash: short2, author: author2, date: date2, message: msg2 },
+      comparison: {
+        commitsBetween: commitsBetween.all,
+        totalCommitsBetween: commitsBetween.total,
+        diffSummary,
+        fileComparisons,
+      },
+      timeDifference: new Date(date2) - new Date(date1),
+    };
   }
 
   /**
@@ -733,49 +678,52 @@ class GitService {
   /**
    * Analyze two commits with full file contents
    */
-  async analyzeCommits(hash1, hash2) {
-    try {
-      console.log(`Analyzing commits: ${hash1} vs ${hash2}...`);
-      
-      const [content1, content2, comparison] = await Promise.all([
-        this.getCommitFiles(hash1),
-        this.getCommitFiles(hash2),
-        this.compareCommits(hash1, hash2)
-      ]);
+async analyzeCommits(hash1, hash2) {
+  try {
+    console.log(`Analyzing commits: ${hash1} vs ${hash2}...`);
 
-      return {
-        commit1: {
-          hash: comparison.commit1.hash,
-          shortHash: comparison.commit1.shortHash,
-          author: comparison.commit1.author,
-          date: comparison.commit1.date,
-          message: comparison.commit1.message,
-          fileCount: content1.fileCount,
-          files: content1.files,
-          content: content1,
-        },
-        commit2: {
-          hash: comparison.commit2.hash,
-          shortHash: comparison.commit2.shortHash,
-          author: comparison.commit2.author,
-          date: comparison.commit2.date,
-          message: comparison.commit2.message,
-          fileCount: content2.fileCount,
-          files: content2.files,
-          content2: content2,
-        },
-        comparison: {
-          commitsBetween: comparison.comparison.commitsBetween,
-          totalCommitsBetween: comparison.comparison.totalCommitsBetween,
-          diffSummary: comparison.comparison.diffSummary,
-          fileComparisons: comparison.comparison.fileComparisons,
-          timeDifference: comparison.timeDifference
-        }
-      };
-    } catch (err) {
-      throw new Error(`Failed to analyze commits: ${err.message}`);
-    }
+    // Run all three tasks concurrently
+    const [content1, content2, comparison, fullDiff] = await Promise.all([
+      this.getCommitFiles(hash1),
+      this.getCommitFiles(hash2),
+      this.compareCommits(hash1, hash2),
+      this.getDiffBetweenCommits(hash1, hash2) // full repository diff
+    ]);
+
+    return {
+      commit1: {
+        hash: comparison.commit1.hash,
+        shortHash: comparison.commit1.shortHash,
+        author: comparison.commit1.author,
+        date: comparison.commit1.date,
+        message: comparison.commit1.message,
+        fileCount: content1.fileCount,
+        files: content1.files
+      },
+      commit2: {
+        hash: comparison.commit2.hash,
+        shortHash: comparison.commit2.shortHash,
+        author: comparison.commit2.author,
+        date: comparison.commit2.date,
+        message: comparison.commit2.message,
+        fileCount: content2.fileCount,
+        files: content2.files
+      },
+      comparison: {
+        commitsBetween: comparison.comparison.commitsBetween,
+        totalCommitsBetween: comparison.comparison.totalCommitsBetween,
+        diffSummary: comparison.comparison.diffSummary,
+        fileComparisons: comparison.comparison.fileComparisons,
+        timeDifference: comparison.timeDifference,
+        // full repo diff text between both commits
+        diff: fullDiff 
+      }
+    };
+  } catch (err) {
+    throw new Error(`Failed to analyze commits: ${err.message}`);
   }
+}
+
 async getCommitTree(maxCommits = 50) {
   
   try {
@@ -843,11 +791,12 @@ async getCommitTree(maxCommits = 50) {
 // Usage example
 async function example() {
   let repo = '/home/danieludzlieresi/Desktop/badgit';
-  const gitService = new GitService(repo);
-  console.log(await gitService.getCommitTree());
-  /*
-  try {
 
+  const gitService = new GitService(repo);
+//  console.log(await gitService.getCommitTree());
+  console.log(zlib.gzipSync(JSON.stringify((await gitService.analyzeCommits('eb4ea610e92d433119b8ad17061ce380cc14fcbc', 'd5f31b3fa1e4fdeb9550783cb8a22321986c1630')))));
+  try {
+/*
     // Compare specific file
     console.log('\n=== File Comparison ===');
     const fileComparison = await gitService.compareFile('tool/services/GitService.js', 'main', 'daniel');
@@ -856,19 +805,19 @@ async function example() {
     console.log('Files identical:', fileComparison.identical);
     if (fileComparison.diff) {
       console.log('Diff:', fileComparison.diff);
-    }
+    }*/
     
 
     // Compare commits by hash
     console.log('\n=== Commit Comparison ===');
-    const commitAnalysis = await gitService.analyzeCommits('eb4ea610e92d433119b8ad17061ce380cc14fcbc', 'd5f31b3fa1e4fdeb9550783cb8a22321986c1630');
+    //const commitAnalysis = await gitService.analyzeCommits('eb4ea610e92d433119b8ad17061ce380cc14fcbc', 'd5f31b3fa1e4fdeb9550783cb8a22321986c1630');
     console.log('Commit 1:', commitAnalysis.commit1.message);
     console.log('Commit 2:', commitAnalysis.commit2.message);
     console.log('Files in Commit 1:', commitAnalysis.commit1.fileCount);
     console.log('Files in Commit 2:', commitAnalysis.commit2.fileCount);
     console.log('Commits between:', commitAnalysis.comparison.totalCommitsBetween);
     console.log('Time difference:', commitAnalysis.comparison.timeDifference.days, 'days');
-    
+   /* 
     // Get single commit details
     console.log('\n=== Single Commit Details ===');
     const commit = await gitService.getCommitByHash('eb4ea610e92d433119b8ad17061ce380cc14fcbc');
@@ -882,10 +831,10 @@ async function example() {
     console.log('Files changed:', commit.stats.totalFiles);
     console.log('Insertions:', commit.stats.totalInsertions);
     console.log('Deletions:', commit.stats.totalDeletions);
-    
+    */
   } catch (err) {
     console.error('Error:', err.message);
-  }*/
+  }
 }
 
 // Uncomment to run example

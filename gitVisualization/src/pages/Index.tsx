@@ -127,6 +127,12 @@ const Index = () => {
   };
 
   const handleCompareWithAI = () => {
+
+    const fetchTree = async () => {
+      const response = await fetch(`http://localhost:3000/ai/compare?${firstSelected.id}&${secondSelected.id}`);
+    };
+    //let comp = await fetch(`ai/compare?${firstSelected.hash}&${secondSelected.hash}`);
+
     toast.info("AI Comparison", {
       description: "Connecting to backend for AI comparison...",
     });
