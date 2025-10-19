@@ -133,7 +133,7 @@ const Index = () => {
       const response = await fetch(
         `http://localhost:3000/ai/compare?hash1=${firstSelected.id}&hash2=${secondSelected.id}`
       );
-      let data = await response.json();
+      const data = await response.json();
       console.log("JSON RESP:", JSON.stringify(data));
     };
     compare();
@@ -204,6 +204,7 @@ const Index = () => {
 
   const handleDirectoryChange = async (directory: string) => {
     try {
+      // Send directory to backend
       const response = await fetch("http://localhost:3000/repo", {
         method: "POST",
         headers: {
@@ -218,10 +219,18 @@ const Index = () => {
         throw new Error(`Server responded with ${response.status}`);
       }
 
-      const data = await response.json();
-      console.log("Server response:", data);
+      // Now fetch the new commit tree for the selected directory
+      const treeResponse = await fetch("http://localhost:3000/commit/tree");
+      if (!treeResponse.ok) {
+        throw new Error(`Failed to fetch commit tree: ${treeResponse.status}`);
+      }
+      const tree = (await treeResponse.json()) as Commit[];
+      setCommits(tree);
+      setFirstSelected(null);
+      setSecondSelected(null);
     } catch (error) {
-      console.error("Error sending directory:", error);
+      console.error("Error sending directory or fetching commits:", error);
+      toast.error("Failed to load commits for the selected directory");
     }
   };
 
