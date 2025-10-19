@@ -6,6 +6,7 @@ interface CommitTreeProps {
   firstSelected: Commit | null;
   secondSelected: Commit | null;
   onSelectCommit: (commit: Commit) => void;
+  onMergeCommits?: (commits: Commit[]) => void;
 }
 
 interface TreeNode {
@@ -21,6 +22,7 @@ export const CommitTree = ({
   firstSelected,
   secondSelected,
   onSelectCommit,
+  onMergeCommits,
 }: CommitTreeProps) => {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -39,6 +41,10 @@ export const CommitTree = ({
     x: number;
     y: number;
   } | null>(null);
+  const [mergeTargetId, setMergeTargetId] = useState<string | null>(null);
+  const [mergeMessage, setMergeMessage] = useState<string | null>(null);
+
+  const NODE_RADIUS = 18;
 
   // Build tree structure
   const buildTree = (): TreeNode[] => {
@@ -102,22 +108,34 @@ export const CommitTree = ({
     }
   };
 
+  function getNodeAtPosition(x: number, y: number, excludeId?: string) {
+    for (const commit of commits) {
+      if (commit.id === excludeId) continue;
+      const pos = nodePositions[commit.id] || positions.get(commit.id);
+      if (!pos) continue;
+      const dx = pos.x - x;
+      const dy = pos.y - y;
+      if (Math.sqrt(dx * dx + dy * dy) < NODE_RADIUS * 2) {
+        return commit.id;
+      }
+    }
+    return null;
+  }
+
   const handleNodeDrag = (e: React.MouseEvent) => {
     if (!draggedNodeId || !draggedNodeStart) return;
-
     const svg = svgRef.current;
     if (!svg) return;
-
-    // Get mouse position in SVG coordinates, accounting for pan/zoom
     const pt = svg.createSVGPoint();
     pt.x = e.clientX;
     pt.y = e.clientY;
     const svgPoint = pt.matrixTransform(svg.getScreenCTM()?.inverse());
-
     const newX = svgPoint.x - draggedNodeStart.x;
     const newY = svgPoint.y - draggedNodeStart.y;
-
     setTempDragPosition({ x: newX, y: newY });
+    // Check for merge target
+    const targetId = getNodeAtPosition(newX, newY, draggedNodeId);
+    setMergeTargetId(targetId);
   };
 
   // Calculate positions using tree layout algorithm
@@ -242,7 +260,46 @@ export const CommitTree = ({
 
   // Handle pan end
   const handleMouseUp = () => {
-    // Commit the drag position to permanent storage
+    // If merge target exists, create a new merge commit node
+    if (draggedNodeId && mergeTargetId) {
+      // Find dragged and target commits
+      const draggedCommit = commits.find((c) => c.id === draggedNodeId);
+      const targetCommit = commits.find((c) => c.id === mergeTargetId);
+      if (draggedCommit && targetCommit) {
+        // Generate a unique id/hash for the new merge commit
+        const newId = `M${Date.now()}`;
+        const newHash = `M${Math.random().toString(36).slice(2, 8)}`;
+        // Use color of target, or fallback
+        const color = targetCommit.color || "cyan";
+        // Create new merge commit node
+        const mergeCommit = {
+          id: newId,
+          hash: newHash,
+          message: `Merge commit (${draggedCommit.hash}, ${targetCommit.hash})`,
+          author: "Merge Bot",
+          date: new Date().toISOString().slice(0, 10),
+          parents: [draggedCommit.id, targetCommit.id],
+          color,
+        };
+        // Add new node to commits
+        const updatedCommits = [...commits, mergeCommit];
+        setNodePositions((prev) => ({
+          ...prev,
+          [draggedNodeId]: tempDragPosition || prev[draggedNodeId],
+        }));
+        setMergeTargetId(null);
+        setDraggedNodeId(null);
+        setDraggedNodeStart(null);
+        setTempDragPosition(null);
+        if (typeof onMergeCommits === "function") {
+          onMergeCommits(updatedCommits);
+        }
+        setMergeMessage(`Merged! New commit ${mergeCommit.hash}`);
+        setTimeout(() => setMergeMessage(null), 1600);
+        return;
+      }
+    }
+    // Normal drag end
     if (draggedNodeId && tempDragPosition) {
       setNodePositions((prev) => ({
         ...prev,
@@ -253,6 +310,7 @@ export const CommitTree = ({
     setDraggedNodeId(null);
     setDraggedNodeStart(null);
     setTempDragPosition(null);
+    setMergeTargetId(null);
   };
 
   return (
@@ -281,19 +339,19 @@ export const CommitTree = ({
           {commits.map((commit) => {
             const defaultPos = positions.get(commit.id);
             const customPos = nodePositions[commit.id];
-            // Use temp drag position if this node is being dragged
             const isDragging = draggedNodeId === commit.id;
             const pos =
               isDragging && tempDragPosition
                 ? tempDragPosition
                 : customPos || defaultPos;
             if (!pos) return null;
-
             let selectionState: "none" | "first" | "second" = "none";
             if (firstSelected?.id === commit.id) selectionState = "first";
             else if (secondSelected?.id === commit.id)
               selectionState = "second";
-
+            // Highlight merge target
+            const isMergeTarget =
+              mergeTargetId === commit.id && !!draggedNodeId;
             return (
               <g
                 key={commit.id}
@@ -304,12 +362,23 @@ export const CommitTree = ({
                   selectionState={selectionState}
                   onSelect={onSelectCommit}
                   position={pos}
+                  highlight={isMergeTarget}
+                  tooltip={
+                    isMergeTarget && draggedNodeId
+                      ? "Drop here to merge"
+                      : undefined
+                  }
                 />
               </g>
             );
           })}
         </g>
       </svg>
+      {mergeMessage && (
+        <div className="absolute left-1/2 top-8 -translate-x-1/2 bg-yellow-300 text-yellow-900 font-bold px-6 py-2 rounded-lg shadow-lg z-50 animate-fade-in">
+          {mergeMessage}
+        </div>
+      )}
     </div>
   );
 };

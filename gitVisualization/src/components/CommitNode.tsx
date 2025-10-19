@@ -16,6 +16,8 @@ interface CommitNodeProps {
   selectionState: "none" | "first" | "second";
   onSelect: (commit: Commit) => void;
   position: { x: number; y: number };
+  highlight?: boolean;
+  tooltip?: string;
 }
 
 const colorClasses = {
@@ -37,12 +39,37 @@ export const CommitNode = ({
   selectionState,
   onSelect,
   position,
+  highlight,
+  tooltip,
 }: CommitNodeProps) => {
   const colorClass = colorClasses[commit.color || "cyan"];
   const strokeClass = strokeColorClasses[commit.color || "cyan"];
 
   return (
     <g onClick={() => onSelect(commit)} className="cursor-pointer">
+      {/* Tooltip for merge target */}
+      {tooltip && (
+        <g>
+          <rect
+            x={position.x - 40}
+            y={position.y - 44}
+            width={80}
+            height={22}
+            rx="6"
+            className="fill-yellow-300 stroke-yellow-600 stroke-2 shadow-lg"
+          />
+          <text
+            x={position.x}
+            y={position.y - 30}
+            textAnchor="middle"
+            dominantBaseline="central"
+            className="fill-yellow-900 text-xs font-bold pointer-events-none"
+          >
+            {tooltip}
+          </text>
+        </g>
+      )}
+
       {/* Selection badge */}
       {selectionState !== "none" && (
         <g>
@@ -101,7 +128,8 @@ export const CommitNode = ({
           strokeClass,
           "stroke-[2.5]",
           selectionState === "first" && "stroke-purple-500 stroke-[3.5]",
-          selectionState === "second" && "stroke-pink-500 stroke-[3.5]"
+          selectionState === "second" && "stroke-pink-500 stroke-[3.5]",
+          highlight && "stroke-yellow-400 stroke-[5] shadow-lg"
         )}
       />
 

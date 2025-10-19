@@ -555,6 +555,7 @@ const Index = () => {
           firstSelected={firstSelected}
           secondSelected={secondSelected}
           onSelectCommit={handleSelectCommit}
+          onMergeCommits={setCommits}
         />
       </div>
     </div>
