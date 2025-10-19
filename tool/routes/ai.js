@@ -9,8 +9,20 @@ const gitService = new GitService(repo);
 const aiService = new AiService();
 
 aiRouter.post("/ai/commit", (req, res, next) => {
-  res.json({ message: "not implemented" });
+
 });
+
+aiRouter.post("/ai/analyze", 
+async (req, res, next) => {
+  let first = await gitService.getFirstCommit();
+  let last = await gitService.getLastCommit();
+
+  const resp = await aiService.analyzeRepositoryChanges(gitService, first.hash, last.hash, true);
+
+
+  req.send(resp);
+}
+);
 
 aiRouter.get("/commit/tree", async (req, res) => { 
   res.send(await gitService.getCommitTree());

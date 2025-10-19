@@ -32,13 +32,17 @@ class AiService {
     return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
   }
 
-  async analyzeRepositoryChanges(gitService, commitA, commitB) {
+  async analyzeRepositoryChanges(gitService, commitA, commitB, isAnalyze= false) {
     const files = await gitService.getTrackedFiles();
     const summaries = [];
     let cumulativeContext = [];
 
     console.log(`Analyzing ${files.length} files between commits...`);
-
+    if(isAnalyze){
+    summaries.push(
+        await gitService.getCommitTree()
+    )
+  }
     // Analyze each file sequentially
     for (const file of files) {
       try {
@@ -65,7 +69,9 @@ Provide a concise summary (2-3 sentences) of:
 
         // Get summary for this file with previous context
         const summary = await this.sendPrompt(filePrompt, cumulativeContext);
-        
+        if(isAnalyze) {
+          filePrompt+="IMPORTANT I Gave you tree please analyze the structure and make suggestions what can do";
+        }
         summaries.push({
           file,
           summary: summary.trim()

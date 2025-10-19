@@ -410,7 +410,131 @@ class GitService {
       throw new Error(`Failed to compare branches: ${err.message}`);
     }
   }
+ async getLastCommit() {
+    try {
+      const log = await this.git.log({ maxCount: 1 });
+      
+      if (!log.latest) {
+        throw new Error('No commits found in repository');
+      }
 
+      const commit = log.latest;
+
+      // Get files changed in this commit
+      let filesChanged = [];
+      let stats = null;
+      
+      try {
+        const diffSummary = await this.git.diffSummary([`${commit.hash}^`, commit.hash]);
+        filesChanged = diffSummary.files.map(file => ({
+          file: file.file,
+          changes: file.changes,
+          insertions: file.insertions,
+          deletions: file.deletions,
+          binary: file.binary
+        }));
+        stats = {
+          totalFiles: diffSummary.files.length,
+          totalChanges: diffSummary.changed,
+          totalInsertions: diffSummary.insertions,
+          totalDeletions: diffSummary.deletions
+        };
+      } catch (err) {
+        // This might be the first commit, so no parent exists
+        console.log('Could not get diff (might be first commit)');
+      }
+
+      return {
+        hash: commit.hash,
+        shortHash: commit.hash.substring(0, 7),
+        author: {
+          name: commit.author_name,
+          email: commit.author_email
+        },
+        date: commit.date,
+        message: commit.message,
+        body: commit.body || '',
+        refs: commit.refs || '',
+        filesChanged,
+        stats
+      };
+    } catch (err) {
+      throw new Error(`Failed to get last commit: ${err.message}`);
+    }
+  }
+
+  /**
+   * Get the first (initial) commit
+   */
+  async getFirstCommit() {
+    try {
+      // Get all commits in reverse order (oldest first)
+      const logOutput = await this.git.raw([
+        'rev-list',
+        '--max-parents=0',
+        'HEAD'
+      ]);
+
+      const firstCommitHash = logOutput.trim().split('\n')[0];
+
+      if (!firstCommitHash) {
+        throw new Error('No commits found in repository');
+      }
+
+      // Get detailed info about the first commit
+      const log = await this.git.log([firstCommitHash, '-1']);
+
+      if (!log.latest) {
+        throw new Error('Could not retrieve first commit details');
+      }
+
+      const commit = log.latest;
+
+      // Get all files in the first commit
+      let files = [];
+      try {
+        const fileList = await this.git.raw(['ls-tree', '-r', '--name-only', firstCommitHash]);
+        files = fileList.trim().split('\n').filter(f => f);
+      } catch (err) {
+        console.log('Could not get files from first commit');
+      }
+
+      // Get diff stats for first commit (show all additions)
+      let stats = null;
+      try {
+        const diffSummary = await this.git.diffSummary([
+          '--root', // Special flag for first commit
+          firstCommitHash
+        ]);
+        stats = {
+          totalFiles: diffSummary.files.length,
+          totalChanges: diffSummary.changed,
+          totalInsertions: diffSummary.insertions,
+          totalDeletions: diffSummary.deletions
+        };
+      } catch (err) {
+        console.log('Could not get diff stats for first commit');
+      }
+
+      return {
+        hash: commit.hash,
+        shortHash: commit.hash.substring(0, 7),
+        author: {
+          name: commit.author_name,
+          email: commit.author_email
+        },
+        date: commit.date,
+        message: commit.message,
+        body: commit.body || '',
+        refs: commit.refs || '',
+        files,
+        stats,
+        isFirstCommit: true
+      };
+    } catch (err) {
+      throw new Error(`Failed to get first commit: ${err.message}`);
+    }
+  }
   /**
    * Get full contents of two branches for side-by-side analysis
    * This is the main function you'll want to use for analyzing branches
@@ -1013,6 +1137,6 @@ async function example() {
 }
 
 // Uncomment to run example
- example();
+ //example();
 
 export default GitService;
