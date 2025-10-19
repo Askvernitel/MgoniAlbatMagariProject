@@ -65,7 +65,8 @@ ${diff}
 
 Provide a concise summary (2-3 sentences) of:
 1. What changed in this file
-2. The purpose/impact of these changes`;
+2. The purpose/impact of these changes
+3. DONT RETURN MARKDOWN NORMAL TEXT`;
 
         // Get summary for this file with previous context
         const summary = await this.sendPrompt(filePrompt, cumulativeContext);
