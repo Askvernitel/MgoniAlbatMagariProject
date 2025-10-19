@@ -956,7 +956,7 @@ async function example() {
   const gitService = new GitService(repo);
 //  console.log(await gitService.getCommitTree());
   let files = await gitService.getTrackedFiles();
-  console.log(await gitService.getAllFileDiffsBetweenCommits());
+  console.log() 
   try {
 /*
     // Compare specific file
