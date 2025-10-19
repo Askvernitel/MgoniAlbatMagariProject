@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { CommitTree } from "@/components/CommitTree";
 import { CommitInput } from "@/components/CommitInput";
 import { CommitComparison } from "@/components/CommitComparison";
@@ -120,6 +120,9 @@ const Index = () => {
   const [showInput, setShowInput] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showAIAnalysis, setShowAIAnalysis] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [compareResult, setCompareResult] = useState<any>(null);
+  const compareResultRef = useRef<HTMLDivElement | null>(null);
 
   const handleCommitWithAI = () => {
     toast.info("AI Commit", {
@@ -129,16 +132,17 @@ const Index = () => {
 
   const handleCompareWithAI = () => {
     const compare = async () => {
-      console.log("START");
-      const response = await fetch(
-        `http://localhost:3000/ai/compare?hash1=${firstSelected.id}&hash2=${secondSelected.id}`
-      );
-      const data = await response.json();
-      console.log("JSON RESP:", JSON.stringify(data));
+      try {
+        const response = await fetch(
+          `http://localhost:3000/ai/compare?hash1=${firstSelected.id}&hash2=${secondSelected.id}`
+        );
+        const data = await response.json();
+        setCompareResult(data);
+      } catch (error) {
+        setCompareResult({ error: "Failed to fetch AI comparison." });
+      }
     };
     compare();
-    //let comp = await fetch(`ai/compare?${firstSelected.hash}&${secondSelected.hash}`);
-
     toast.info("AI Comparison", {
       description: "Connecting to backend for AI comparison...",
     });
@@ -199,6 +203,7 @@ const Index = () => {
   const handleClearSelection = () => {
     setFirstSelected(null);
     setSecondSelected(null);
+    setCompareResult(null);
     toast.info("Selection cleared");
   };
 
@@ -233,6 +238,21 @@ const Index = () => {
       toast.error("Failed to load commits for the selected directory");
     }
   };
+
+  useEffect(() => {
+    if (!showComparison) {
+      setCompareResult(null);
+    }
+  }, [showComparison]);
+
+  useEffect(() => {
+    if (compareResult && compareResultRef.current) {
+      compareResultRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
+    }
+  }, [compareResult]);
 
   // Add your directory loading logic here
 
@@ -292,13 +312,47 @@ const Index = () => {
 
       {/* Comparison Widget - Floating */}
       {showComparison && (firstSelected || secondSelected) && (
-        <div className="absolute top-20 right-4 z-20 max-w-2xl animate-fade-in">
-          <CommitComparison
-            firstCommit={firstSelected}
-            secondCommit={secondSelected}
-            onClear={handleClearSelection}
-            onCompareWithAI={handleCompareWithAI}
-          />
+        <div className="fixed top-20 right-4 z-20 w-full max-w-md animate-fade-in">
+          <div className="bg-card/95 backdrop-blur-sm border border-border rounded-lg p-4 shadow-node w-full max-h-[70vh] overflow-y-auto">
+            <CommitComparison
+              firstCommit={firstSelected}
+              secondCommit={secondSelected}
+              onClear={handleClearSelection}
+              onCompareWithAI={handleCompareWithAI}
+            />
+            {compareResult && (
+              <div
+                ref={compareResultRef}
+                className="mt-4 bg-background rounded-lg shadow border border-border p-3 max-h-[40vh] overflow-y-auto"
+              >
+                <h3 className="text-base font-bold mb-2 text-foreground">
+                  AI Comparison Summary
+                </h3>
+                {compareResult.error ? (
+                  <div className="text-red-500">{compareResult.error}</div>
+                ) : (
+                  <>
+                    <div className="mb-2">
+                      <div className="text-sm font-semibold text-foreground mb-1">
+                        Overall Analysis
+                      </div>
+                      <div className="text-muted-foreground whitespace-pre-line leading-relaxed bg-card rounded p-2 border border-border text-sm">
+                        {compareResult.overallAnalysis}
+                      </div>
+                    </div>
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-xs text-blue-600 hover:underline mb-1">
+                        Show full AI response details
+                      </summary>
+                      <pre className="text-xs whitespace-pre-wrap break-words text-muted-foreground bg-card rounded p-2 border border-border mt-1 max-h-[20vh] overflow-y-auto">
+                        {JSON.stringify(compareResult, null, 2)}
+                      </pre>
+                    </details>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
