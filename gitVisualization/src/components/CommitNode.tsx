@@ -16,11 +16,12 @@ interface CommitNodeProps {
   selectionState: "none" | "first" | "second";
   onSelect: (commit: Commit) => void;
   position: { x: number; y: number };
+  onDragStart?: (e: React.MouseEvent) => void;
 }
 
 const colorClasses = {
   cyan: "fill-cyan-400",
-  gray: "fill-gray-400",
+  gray: "fill-gray-400", 
   orange: "fill-orange-400",
   green: "fill-emerald-400",
 };
@@ -32,12 +33,16 @@ const strokeColorClasses = {
   green: "stroke-gray-800",
 };
 
-export const CommitNode = ({ commit, selectionState, onSelect, position }: CommitNodeProps) => {
+export const CommitNode = ({ commit, selectionState, onSelect, position, onDragStart }: CommitNodeProps) => {
   const colorClass = colorClasses[commit.color || "cyan"];
   const strokeClass = strokeColorClasses[commit.color || "cyan"];
 
   return (
-    <g onClick={() => onSelect(commit)} className="cursor-pointer">
+    <g 
+      onClick={() => onSelect(commit)} 
+      onMouseDown={onDragStart}
+      className="cursor-move hover:cursor-grab active:cursor-grabbing"
+    >
       {/* Selection badge */}
       {selectionState !== "none" && (
         <g>
@@ -46,7 +51,6 @@ export const CommitNode = ({ commit, selectionState, onSelect, position }: Commi
             cy={position.y - 18}
             r="12"
             className={cn(
-              "transition-all",
               selectionState === "first" && "fill-purple-500 stroke-gray-800 stroke-2",
               selectionState === "second" && "fill-pink-500 stroke-gray-800 stroke-2"
             )}
@@ -89,14 +93,13 @@ export const CommitNode = ({ commit, selectionState, onSelect, position }: Commi
           </text>
         </g>
       )}
-
+      
       {/* Node circle */}
       <circle
         cx={position.x}
         cy={position.y}
         r={selectionState !== "none" ? 18 : 16}
         className={cn(
-          "transition-all",
           colorClass,
           strokeClass,
           "stroke-[2.5]",
@@ -113,7 +116,7 @@ export const CommitNode = ({ commit, selectionState, onSelect, position }: Commi
         dominantBaseline="central"
         className="text-[13px] font-mono font-bold pointer-events-none select-none fill-gray-900"
       >
-        {commit.id.slice(0, 2)}
+        {commit.hash}
       </text>
 
       {/* Hover info tooltip */}

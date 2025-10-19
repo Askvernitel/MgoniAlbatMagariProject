@@ -21,6 +21,9 @@ export const CommitTree = ({ commits, firstSelected, secondSelected, onSelectCom
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [nodePositions, setNodePositions] = useState<Map<string, { x: number; y: number }>>(new Map());
+  const [draggingNode, setDraggingNode] = useState<string | null>(null);
+  const [nodeDragOffset, setNodeDragOffset] = useState({ x: 0, y: 0 });
   const svgRef = useRef<SVGSVGElement>(null);
 
   // Build tree structure
@@ -99,18 +102,38 @@ export const CommitTree = ({ commits, firstSelected, secondSelected, onSelectCom
     return positions;
   };
 
-  const positions = calculatePositions();
+  const calculatedPositions = calculatePositions();
+  
+  // Merge calculated positions with custom node positions
+  const positions = new Map(calculatedPositions);
+  nodePositions.forEach((pos, id) => {
+    positions.set(id, pos);
+  });
+
+  // Apply drag offset to the currently dragging node
+  const getNodePosition = (commitId: string) => {
+    const pos = positions.get(commitId);
+    if (!pos) return null;
+    
+    if (draggingNode === commitId) {
+      return {
+        x: pos.x + nodeDragOffset.x,
+        y: pos.y + nodeDragOffset.y,
+      };
+    }
+    return pos;
+  };
 
   // Draw connecting lines with curves
   const renderConnections = () => {
     return commits.flatMap((commit) => {
       if (commit.parents.length === 0) return [];
 
-      const childPos = positions.get(commit.id);
+      const childPos = getNodePosition(commit.id);
       if (!childPos) return [];
 
       return commit.parents.map((parentId) => {
-        const parentPos = positions.get(parentId);
+        const parentPos = getNodePosition(parentId);
         if (!parentPos) return null;
 
         const midY = (childPos.y + parentPos.y) / 2;
@@ -161,29 +184,86 @@ export const CommitTree = ({ commits, firstSelected, secondSelected, onSelectCom
   // Handle pan end
   const handleMouseUp = () => {
     setIsDragging(false);
+    
+    // Commit the drag offset to permanent position
+    if (draggingNode) {
+      const pos = positions.get(draggingNode);
+      if (pos) {
+        const finalPos = {
+          x: pos.x + nodeDragOffset.x,
+          y: pos.y + nodeDragOffset.y,
+        };
+        setNodePositions(prev => new Map(prev).set(draggingNode, finalPos));
+      }
+      setDraggingNode(null);
+      setNodeDragOffset({ x: 0, y: 0 });
+    }
+  };
+
+  // Handle node drag start
+  const handleNodeDragStart = (e: React.MouseEvent, commitId: string) => {
+    e.stopPropagation();
+    setDraggingNode(commitId);
+    setNodeDragOffset({ x: 0, y: 0 });
+  };
+
+  // Handle node drag
+  const handleNodeDrag = (e: React.MouseEvent) => {
+    if (!draggingNode) return;
+    e.stopPropagation();
+    
+    const svgPoint = getSVGPoint(e);
+    const originalPos = positions.get(draggingNode);
+    if (!originalPos) return;
+    
+    setNodeDragOffset({
+      x: svgPoint.x - originalPos.x,
+      y: svgPoint.y - originalPos.y,
+    });
+  };
+
+  // Convert screen coordinates to SVG coordinates
+  const getSVGPoint = (e: React.MouseEvent): { x: number; y: number } => {
+    if (!svgRef.current) return { x: 0, y: 0 };
+    
+    const svg = svgRef.current;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    
+    const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+    
+    // Account for current transform
+    return {
+      x: (svgP.x - pan.x) / zoom,
+      y: (svgP.y - pan.y) / zoom,
+    };
   };
 
   return (
-    <div
+    <div 
       className="relative w-full h-full min-h-[600px] overflow-hidden bg-blue-500 rounded-lg cursor-grab active:cursor-grabbing"
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
+      onMouseMove={(e) => {
+        handleMouseMove(e);
+        handleNodeDrag(e);
+      }}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      <svg
+      <svg 
         ref={svgRef}
-        className="w-full h-full min-h-[600px]"
+        className="w-full h-full min-h-[600px]" 
         viewBox={`0 0 ${maxX} ${maxY}`}
       >
         <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
-          {/* Connection lines */}
-          {renderConnections()}
+        {/* Connection lines */}
+        {renderConnections()}
 
           {/* Commit nodes */}
           {commits.map((commit) => {
-            const pos = positions.get(commit.id);
+            const pos = getNodePosition(commit.id);
             if (!pos) return null;
 
             let selectionState: "none" | "first" | "second" = "none";
@@ -197,6 +277,7 @@ export const CommitTree = ({ commits, firstSelected, secondSelected, onSelectCom
                 selectionState={selectionState}
                 onSelect={onSelectCommit}
                 position={pos}
+                onDragStart={(e) => handleNodeDragStart(e, commit.id)}
               />
             );
           })}
