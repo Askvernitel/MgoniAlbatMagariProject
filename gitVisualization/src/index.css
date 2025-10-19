@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 220 25% 10%;
+    --foreground: 210 40% 98%;
+
+    --card: 220 20% 14%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 220 20% 14%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 189 94% 55%;
+    --primary-foreground: 220 25% 10%;
+
+    --secondary: 220 18% 20%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 220 18% 20%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 265 89% 70%;
+    --accent-foreground: 220 25% 10%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 220 18% 22%;
+    --input: 220 18% 22%;
+    --ring: 189 94% 55%;
+
+    --radius: 0.75rem;
+
+    /* Git tree specific colors */
+    --commit-node: 189 94% 55%;
+    --commit-node-selected: 265 89% 70%;
+    --commit-node-hover: 189 94% 65%;
+    --branch-line: 220 18% 35%;
+    --node-glow: 189 94% 55%;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(189 94% 55%), hsl(220 89% 65%));
+    --gradient-node: linear-gradient(135deg, hsl(189 94% 55% / 0.9), hsl(265 89% 70% / 0.7));
+    
+    /* Shadows */
+    --shadow-glow: 0 0 20px hsl(189 94% 55% / 0.4);
+    --shadow-node: 0 8px 24px hsl(220 25% 5% / 0.5);
+    
+    /* Transitions */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  
+  .font-mono {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  }
+}

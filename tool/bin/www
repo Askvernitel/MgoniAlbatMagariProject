@@ -7,8 +7,6 @@ import http from 'http';
 const debug = debugLib;
 let gitService = new GitService();
 
-gitService.getFileHierarchy().then((data)=>{
-});
 
 
 
