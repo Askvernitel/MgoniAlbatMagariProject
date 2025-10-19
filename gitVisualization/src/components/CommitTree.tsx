@@ -16,12 +16,29 @@ interface TreeNode {
   mod: number;
 }
 
-export const CommitTree = ({ commits, firstSelected, secondSelected, onSelectCommit }: CommitTreeProps) => {
+export const CommitTree = ({
+  commits,
+  firstSelected,
+  secondSelected,
+  onSelectCommit,
+}: CommitTreeProps) => {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const svgRef = useRef<SVGSVGElement>(null);
+  const [nodePositions, setNodePositions] = useState<
+    Record<string, { x: number; y: number }>
+  >({});
+  const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
+  const [draggedNodeStart, setDraggedNodeStart] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [tempDragPosition, setTempDragPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
   // Build tree structure
   const buildTree = (): TreeNode[] => {
@@ -55,6 +72,52 @@ export const CommitTree = ({ commits, firstSelected, secondSelected, onSelectCom
     });
 
     return roots;
+  };
+
+  const getSVGPoint = (e: React.MouseEvent, svg: SVGSVGElement) => {
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    return pt.matrixTransform(svg.getScreenCTM()?.inverse());
+  };
+
+  const handleNodeDragStart = (e: React.MouseEvent, nodeId: string) => {
+    e.stopPropagation();
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    // Get mouse position in SVG coordinates, accounting for pan/zoom
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const svgPoint = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+
+    setDraggedNodeId(nodeId);
+    const currentPos = nodePositions[nodeId] || positions.get(nodeId);
+    if (currentPos) {
+      setDraggedNodeStart({
+        x: svgPoint.x - currentPos.x,
+        y: svgPoint.y - currentPos.y,
+      });
+    }
+  };
+
+  const handleNodeDrag = (e: React.MouseEvent) => {
+    if (!draggedNodeId || !draggedNodeStart) return;
+
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    // Get mouse position in SVG coordinates, accounting for pan/zoom
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const svgPoint = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+
+    const newX = svgPoint.x - draggedNodeStart.x;
+    const newY = svgPoint.y - draggedNodeStart.y;
+
+    setTempDragPosition({ x: newX, y: newY });
   };
 
   // Calculate positions using tree layout algorithm
@@ -106,11 +169,23 @@ export const CommitTree = ({ commits, firstSelected, secondSelected, onSelectCom
     return commits.flatMap((commit) => {
       if (commit.parents.length === 0) return [];
 
-      const childPos = positions.get(commit.id);
+      const defaultChildPos = positions.get(commit.id);
+      const customChildPos = nodePositions[commit.id];
+      // Use temp drag position if this node is being dragged
+      const childPos =
+        draggedNodeId === commit.id && tempDragPosition
+          ? tempDragPosition
+          : customChildPos || defaultChildPos;
       if (!childPos) return [];
 
       return commit.parents.map((parentId) => {
-        const parentPos = positions.get(parentId);
+        const defaultParentPos = positions.get(parentId);
+        const customParentPos = nodePositions[parentId];
+        // Use temp drag position if parent node is being dragged
+        const parentPos =
+          draggedNodeId === parentId && tempDragPosition
+            ? tempDragPosition
+            : customParentPos || defaultParentPos;
         if (!parentPos) return null;
 
         const midY = (childPos.y + parentPos.y) / 2;
@@ -132,8 +207,10 @@ export const CommitTree = ({ commits, firstSelected, secondSelected, onSelectCom
   };
 
   // Calculate SVG dimensions
-  const maxX = Math.max(...Array.from(positions.values()).map((p) => p.x)) + 200;
-  const maxY = Math.max(...Array.from(positions.values()).map((p) => p.y)) + 100;
+  const maxX =
+    Math.max(...Array.from(positions.values()).map((p) => p.x)) + 200;
+  const maxY =
+    Math.max(...Array.from(positions.values()).map((p) => p.y)) + 100;
 
   // Handle zoom
   const handleWheel = (e: React.WheelEvent) => {
@@ -145,13 +222,18 @@ export const CommitTree = ({ commits, firstSelected, secondSelected, onSelectCom
 
   // Handle pan start
   const handleMouseDown = (e: React.MouseEvent) => {
-    setIsDragging(true);
+    if (draggedNodeId) return; // Don't pan when dragging a node
+    setIsPanning(true);
     setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
   };
 
   // Handle pan move
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
+    if (draggedNodeId) {
+      handleNodeDrag(e);
+      return;
+    }
+    if (!isPanning) return;
     setPan({
       x: e.clientX - dragStart.x,
       y: e.clientY - dragStart.y,
@@ -160,7 +242,17 @@ export const CommitTree = ({ commits, firstSelected, secondSelected, onSelectCom
 
   // Handle pan end
   const handleMouseUp = () => {
-    setIsDragging(false);
+    // Commit the drag position to permanent storage
+    if (draggedNodeId && tempDragPosition) {
+      setNodePositions((prev) => ({
+        ...prev,
+        [draggedNodeId]: tempDragPosition,
+      }));
+    }
+    setIsPanning(false);
+    setDraggedNodeId(null);
+    setDraggedNodeStart(null);
+    setTempDragPosition(null);
   };
 
   return (
@@ -174,6 +266,10 @@ export const CommitTree = ({ commits, firstSelected, secondSelected, onSelectCom
     >
       <svg
         ref={svgRef}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
         className="w-full h-full min-h-[600px]"
         viewBox={`0 0 ${maxX} ${maxY}`}
       >
@@ -183,21 +279,33 @@ export const CommitTree = ({ commits, firstSelected, secondSelected, onSelectCom
 
           {/* Commit nodes */}
           {commits.map((commit) => {
-            const pos = positions.get(commit.id);
+            const defaultPos = positions.get(commit.id);
+            const customPos = nodePositions[commit.id];
+            // Use temp drag position if this node is being dragged
+            const isDragging = draggedNodeId === commit.id;
+            const pos =
+              isDragging && tempDragPosition
+                ? tempDragPosition
+                : customPos || defaultPos;
             if (!pos) return null;
 
             let selectionState: "none" | "first" | "second" = "none";
             if (firstSelected?.id === commit.id) selectionState = "first";
-            else if (secondSelected?.id === commit.id) selectionState = "second";
+            else if (secondSelected?.id === commit.id)
+              selectionState = "second";
 
             return (
-              <CommitNode
+              <g
                 key={commit.id}
-                commit={commit}
-                selectionState={selectionState}
-                onSelect={onSelectCommit}
-                position={pos}
-              />
+                onMouseDown={(e) => handleNodeDragStart(e, commit.id)}
+              >
+                <CommitNode
+                  commit={commit}
+                  selectionState={selectionState}
+                  onSelect={onSelectCommit}
+                  position={pos}
+                />
+              </g>
             );
           })}
         </g>

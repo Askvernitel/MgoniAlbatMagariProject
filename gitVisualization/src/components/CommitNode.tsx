@@ -32,7 +32,12 @@ const strokeColorClasses = {
   green: "stroke-gray-800",
 };
 
-export const CommitNode = ({ commit, selectionState, onSelect, position }: CommitNodeProps) => {
+export const CommitNode = ({
+  commit,
+  selectionState,
+  onSelect,
+  position,
+}: CommitNodeProps) => {
   const colorClass = colorClasses[commit.color || "cyan"];
   const strokeClass = strokeColorClasses[commit.color || "cyan"];
 
@@ -47,8 +52,10 @@ export const CommitNode = ({ commit, selectionState, onSelect, position }: Commi
             r="12"
             className={cn(
               "transition-all",
-              selectionState === "first" && "fill-purple-500 stroke-gray-800 stroke-2",
-              selectionState === "second" && "fill-pink-500 stroke-gray-800 stroke-2"
+              selectionState === "first" &&
+                "fill-purple-500 stroke-gray-800 stroke-2",
+              selectionState === "second" &&
+                "fill-pink-500 stroke-gray-800 stroke-2"
             )}
           />
           <text
@@ -96,7 +103,6 @@ export const CommitNode = ({ commit, selectionState, onSelect, position }: Commi
         cy={position.y}
         r={selectionState !== "none" ? 18 : 16}
         className={cn(
-          "transition-all",
           colorClass,
           strokeClass,
           "stroke-[2.5]",
