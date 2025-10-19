@@ -954,9 +954,19 @@ async analyzeCommits(hash1, hash2) {
 async function example() {
   let repo = '/home/danieludzlieresi/Desktop/badgit';
   const gitService = new GitService(repo);
+
+
 //  console.log(await gitService.getCommitTree());
   let files = await gitService.getTrackedFiles();
-  console.log() 
+  console.log(files);
+
+  files.forEach(async (file)=>{ 
+  if(file =="tool/routes/ai.js"){
+  console.log("HELLO");
+  console.log(await gitService.getFileDiffBetweenCommits(file, "66d5051ad26db46014bf1cefdf885a05f3efb887", "48f89f98794797519e1fc7794ff4efbcd9019dc4"));
+
+  }
+  })
   try {
 /*
     // Compare specific file
