@@ -79,13 +79,7 @@ export const CommitNode = ({
             width={commit.branch.length * 8 + 12}
             height={20}
             rx="6"
-            className={cn(
-              commit.color === "cyan" && "fill-blue-500",
-              commit.color === "orange" && "fill-orange-500",
-              commit.color === "green" && "fill-emerald-500",
-              commit.color === "gray" && "fill-gray-600",
-              "stroke-gray-800 stroke-[1.5]"
-            )}
+            className={cn("fill-gray-600", "stroke-gray-800 stroke-[1.5]")}
           />
           <text
             x={position.x + 34}
