@@ -122,6 +122,8 @@ const Index = () => {
   const [showAIAnalysis, setShowAIAnalysis] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [compareResult, setCompareResult] = useState<any>(null);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [aiAnalysisResult, setAIAnalysisResult] = useState<any>(null);
   const compareResultRef = useRef<HTMLDivElement | null>(null);
 
   const handleCommitWithAI = () => {
@@ -132,6 +134,7 @@ const Index = () => {
 
   const handleCompareWithAI = () => {
     const compare = async () => {
+      setCompareLoading(true);
       try {
         const response = await fetch(
           `http://localhost:3000/ai/compare?hash1=${firstSelected.id}&hash2=${secondSelected.id}`
@@ -140,6 +143,8 @@ const Index = () => {
         setCompareResult(data);
       } catch (error) {
         setCompareResult({ error: "Failed to fetch AI comparison." });
+      } finally {
+        setCompareLoading(false);
       }
     };
     compare();
@@ -150,7 +155,18 @@ const Index = () => {
 
   const handleAIAnalysis = () => {
     toast.info("AI Analysis", {
-      description: "Connecting to backend for AI analysis...",
+      description: "Mock AI analysis returned.",
+    });
+    setAIAnalysisResult({
+      summary: "This is a mock AI analysis summary.",
+      details:
+        "Mock details: The repository is well-structured, with clear separation of concerns and good commit hygiene. No major issues detected.",
+      score: 92,
+      suggestions: [
+        "Consider adding more unit tests.",
+        "Document API endpoints for easier onboarding.",
+        "Review dependency updates for security patches.",
+      ],
     });
   };
 
@@ -320,7 +336,33 @@ const Index = () => {
               onClear={handleClearSelection}
               onCompareWithAI={handleCompareWithAI}
             />
-            {compareResult && (
+            {compareLoading && (
+              <div className="flex items-center justify-center mt-4 mb-2">
+                <svg
+                  className="animate-spin h-5 w-5 text-blue-500 mr-2"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    fill="none"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                  />
+                </svg>
+                <span className="text-sm text-muted-foreground">
+                  Loading AI comparison...
+                </span>
+              </div>
+            )}
+            {compareResult && !compareLoading && (
               <div
                 ref={compareResultRef}
                 className="mt-4 bg-background rounded-lg shadow border border-border p-3 max-h-[40vh] overflow-y-auto"
@@ -367,6 +409,30 @@ const Index = () => {
       {showAIAnalysis && (
         <div className="absolute top-4 left-4 z-20 w-80 animate-fade-in">
           <AIAnalysis onAnalyze={handleAIAnalysis} />
+          {aiAnalysisResult && (
+            <div className="mt-4 bg-background rounded-lg shadow border border-border p-3">
+              <h3 className="text-base font-bold mb-2 text-foreground">
+                AI Analysis Result
+              </h3>
+              <div className="text-muted-foreground whitespace-pre-line leading-relaxed bg-card rounded p-2 border border-border text-sm mb-2">
+                <strong>Summary:</strong> {aiAnalysisResult.summary}
+              </div>
+              <div className="text-muted-foreground whitespace-pre-line leading-relaxed bg-card rounded p-2 border border-border text-sm mb-2">
+                <strong>Details:</strong> {aiAnalysisResult.details}
+              </div>
+              <div className="text-muted-foreground mb-2">
+                <strong>Score:</strong> {aiAnalysisResult.score}/100
+              </div>
+              <div className="text-muted-foreground mb-2">
+                <strong>Suggestions:</strong>
+                <ul className="list-disc ml-5">
+                  {aiAnalysisResult.suggestions.map((s: string, i: number) => (
+                    <li key={i}>{s}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
