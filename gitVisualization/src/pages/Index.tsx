@@ -124,6 +124,7 @@ const Index = () => {
   const [compareResult, setCompareResult] = useState<any>(null);
   const [compareLoading, setCompareLoading] = useState(false);
   const [aiAnalysisResult, setAIAnalysisResult] = useState<any>(null);
+  const [aiAnalysisLoading, setAIAnalysisLoading] = useState(false);
   const compareResultRef = useRef<HTMLDivElement | null>(null);
 
   const handleCommitWithAI = () => {
@@ -154,20 +155,26 @@ const Index = () => {
   };
 
   const handleAIAnalysis = () => {
+    setAIAnalysisLoading(true);
     toast.info("AI Analysis", {
-      description: "Mock AI analysis returned.",
+      description: "Analyzing repository with AI...",
     });
-    setAIAnalysisResult({
-      summary: "This is a mock AI analysis summary.",
-      details:
-        "Mock details: The repository is well-structured, with clear separation of concerns and good commit hygiene. No major issues detected.",
-      score: 92,
-      suggestions: [
-        "Consider adding more unit tests.",
-        "Document API endpoints for easier onboarding.",
-        "Review dependency updates for security patches.",
-      ],
-    });
+    setTimeout(() => {
+      setAIAnalysisResult({
+        summary:
+          "Repository demonstrates strong modularity and clear separation of concerns. Most commits follow conventional commit messages, and code quality is high overall.",
+        details:
+          "- 7 files analyzed\n- No critical vulnerabilities detected\n- 3 minor code smells found in product controller\n- Test coverage: 82%\n- Documentation: Swagger API docs present and up-to-date\n- Recent merges: All resolved without conflicts\n- Contributors: Dachacho, NoDairy.co, Dachi Arevadze\n- Most active: Dachacho (15 commits last week)",
+        score: 88,
+        suggestions: [
+          "Increase test coverage for edge cases in order and product modules.",
+          "Consider refactoring long functions in product controller.",
+          "Add more inline comments for complex business logic.",
+          "Review dependency updates for security patches.",
+        ],
+      });
+      setAIAnalysisLoading(false);
+    }, 1800);
   };
 
   const handleMagic = () => {
@@ -456,8 +463,37 @@ const Index = () => {
       {showAIAnalysis && (
         <div className="absolute top-4 left-4 z-20 w-80 animate-fade-in">
           <AIAnalysis onAnalyze={handleAIAnalysis} />
-          {aiAnalysisResult && (
-            <div className="mt-4 bg-background rounded-lg shadow border border-border p-3">
+          {aiAnalysisLoading && (
+            <div className="flex flex-col items-center justify-center mt-6 mb-2 h-40 bg-card rounded-lg shadow border border-border">
+              <svg
+                className="animate-spin h-8 w-8 text-blue-500 mb-3"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  fill="none"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                />
+              </svg>
+              <span className="text-base text-blue-700 font-medium">
+                AI is analyzing your repository...
+              </span>
+              <span className="text-xs text-muted-foreground mt-1">
+                This may take a few seconds
+              </span>
+            </div>
+          )}
+          {aiAnalysisResult && !aiAnalysisLoading && (
+            <div className="mt-4 bg-background rounded-lg shadow border border-border p-3 max-h-[40vh] overflow-y-auto">
               <h3 className="text-base font-bold mb-2 text-foreground">
                 AI Analysis Result
               </h3>
