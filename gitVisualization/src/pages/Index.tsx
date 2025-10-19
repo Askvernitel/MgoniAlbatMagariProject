@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CommitTree } from "@/components/CommitTree";
 import { CommitInput } from "@/components/CommitInput";
 import { CommitComparison } from "@/components/CommitComparison";
+import { DirectoryInput } from "@/components/DirectoryInput";
 import { AIAnalysis } from "@/components/AIAnalysis";
 import type { Commit } from "@/components/CommitNode";
 import { GitCompare, Plus, BarChart3, Brain, Wand2 } from "lucide-react";
@@ -105,13 +106,13 @@ const Index = () => {
     const fetchTree = async () => {
       const response = await fetch("http://localhost:3000/commit/tree");
       const tree = (await response.json()) as Commit[];
-      tree.forEach(commit => {
+      tree.forEach((commit) => {
         console.log(commit);
       });
       setCommits(tree);
     };
     fetchTree();
-  }, [])
+  }, []);
   const [firstSelected, setFirstSelected] = useState<Commit | null>(null);
   const [secondSelected, setSecondSelected] = useState<Commit | null>(null);
 
@@ -127,9 +128,10 @@ const Index = () => {
   };
 
   const handleCompareWithAI = () => {
-
     const fetchTree = async () => {
-      const response = await fetch(`http://localhost:3000/ai/compare?${firstSelected.id}&${secondSelected.id}`);
+      const response = await fetch(
+        `http://localhost:3000/ai/compare?${firstSelected.id}&${secondSelected.id}`
+      );
     };
     //let comp = await fetch(`ai/compare?${firstSelected.hash}&${secondSelected.hash}`);
 
@@ -196,8 +198,18 @@ const Index = () => {
     toast.info("Selection cleared");
   };
 
+  const handleDirectoryChange = (directory: string) => {
+    console.log("Directory changed:", directory);
+    // Add your directory loading logic here
+  };
+
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-background">
+      {/* Directory Input - Top Left */}
+      <div className="absolute top-4 left-4 z-20 max-w-md">
+        <DirectoryInput onDirectoryChange={handleDirectoryChange} />
+      </div>
+
       {/* Control Buttons - Floating Top Right */}
       <div className="absolute top-4 right-4 z-20 flex gap-2">
         <Button
@@ -274,11 +286,15 @@ const Index = () => {
       {/* Stats Widget - Floating Bottom Left */}
       {showStats && (
         <div className="absolute bottom-4 left-4 z-20 bg-card/95 backdrop-blur-sm border border-border rounded-lg p-4 shadow-node animate-fade-in">
-          <h3 className="text-sm font-semibold text-foreground mb-3">Statistics</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-3">
+            Statistics
+          </h3>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between items-center gap-4">
               <span className="text-muted-foreground">Total Commits</span>
-              <span className="font-semibold text-primary">{commits.length}</span>
+              <span className="font-semibold text-primary">
+                {commits.length}
+              </span>
             </div>
             <div className="flex justify-between items-center gap-4">
               <span className="text-muted-foreground">Commit A</span>
