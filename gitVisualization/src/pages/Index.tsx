@@ -270,6 +270,53 @@ const Index = () => {
     }
   }, [compareResult]);
 
+  const branchColors: Record<string, "cyan" | "gray" | "orange" | "green"> = {
+    main: "green",
+    bugFix: "gray",
+    side: "cyan",
+    another: "orange",
+  };
+  const defaultColor = "cyan" as const;
+
+  function assignBranchColors(commits: Commit[]): Commit[] {
+    return commits.map((commit) => {
+      if (commit.branch && branchColors[commit.branch]) {
+        return { ...commit, color: branchColors[commit.branch] };
+      }
+      // If no branch or unknown branch, assign default color
+      return { ...commit, color: defaultColor };
+    });
+  }
+
+  const authorColors: ("cyan" | "gray" | "orange" | "green")[] = [
+    "cyan",
+    "gray",
+    "orange",
+    "green",
+  ];
+  function getAuthorColor(
+    author: string,
+    authorMap: Record<string, "cyan" | "gray" | "orange" | "green">,
+    colorList: ("cyan" | "gray" | "orange" | "green")[]
+  ) {
+    if (authorMap[author]) return authorMap[author];
+    const color = colorList[Object.keys(authorMap).length % colorList.length];
+    authorMap[author] = color;
+    return color;
+  }
+  function assignAuthorColors(commits: Commit[]): Commit[] {
+    const authorMap: Record<string, "cyan" | "gray" | "orange" | "green"> = {};
+    return commits.map((commit) => ({
+      ...commit,
+      color: getAuthorColor(commit.author, authorMap, authorColors),
+    }));
+  }
+
+  // Log commit data in a useEffect to ensure it prints when commits change.
+  useEffect(() => {
+    console.log("Commits for color assignment:", commits);
+  }, [commits]);
+
   // Add your directory loading logic here
 
   return (
@@ -468,7 +515,7 @@ const Index = () => {
       {/* Tree visualization - Fullscreen */}
       <div className="absolute inset-0">
         <CommitTree
-          commits={commits}
+          commits={assignAuthorColors(commits)}
           firstSelected={firstSelected}
           secondSelected={secondSelected}
           onSelectCommit={handleSelectCommit}
